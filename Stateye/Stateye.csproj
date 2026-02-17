@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Stateye</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+
+    <AnalysisMode>recommended</AnalysisMode>
+    <AnalysisModePerformance>all</AnalysisModePerformance>
+    <AnalysisModeGlobalization>none</AnalysisModeGlobalization>
+
+    <InvariantGlobalization>True</InvariantGlobalization>
+    <InvariantTimezone>True</InvariantTimezone>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.3" />
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.3" />
+  </ItemGroup>
+
+</Project>
