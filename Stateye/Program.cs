@@ -1,8 +1,5 @@
-using System.Numerics;
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.Arm;
-using System.Runtime.Intrinsics.X86;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 using DiscordRPC;
 
@@ -19,7 +16,7 @@ internal class Program
         await ((Task)configTask).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         if (configTask.IsFaulted)
         {
-            var baseEx = configTask.Exception.GetBaseException();
+            var baseEx = configTask.Exception.InnerException;
             if (baseEx is CryptographicException)
             {
                 Log.Fatal("Failed to load config due to a CryptographicException. This likely means that you've changed your Windows account password or you're not the person who had their token encrypted where you ran this application.");
@@ -38,12 +35,18 @@ internal class Program
         var config = configTask.Result;
 
         // Get token from environment (rbx_cookie equivalent), fall back to config
-        var token = RbxCookie.GetValue() ?? config.Token;
+        var token = RbxCookie.GetValue() ?? config?.Token;
 
         if (string.IsNullOrWhiteSpace(token))
         {
-            Log.Fatal("No valid token found. You'll need to get one from the Roblox website by logging in, inspecting application storage and getting your auth token.");
-            Log.Fatal("It will be encrypted upon first read so that it's not just sitting in plaintext in your config file.");
+            Log.Fatal("No valid token found. You'll need to get one from the Roblox website https://www.roblox.com/ by logging in, inspecting application storage and getting your auth token.");
+            Log.Fatal("Create a config file where you run this executable (which is typically the same directory where the file itself is located) and put your token in there. It will be encrypted upon first read so that it's not just sitting there in plaintext.");
+            var sampleConfig = JsonSerializer.Serialize(new Config() { Token = "[YOUR TOKEN HERE]" }, ConfigSerializerContext.Default.Config);
+            Log.Fatal($"""
+                It needs to look something like this:
+                {sampleConfig}
+                """);
+            await File.WriteAllTextAsync(Path.Combine(Environment.CurrentDirectory, AppConstants.ConfigFileName), sampleConfig);
             return;
         }
 

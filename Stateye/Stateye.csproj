@@ -15,6 +15,12 @@
 
     <InvariantGlobalization>True</InvariantGlobalization>
     <InvariantTimezone>True</InvariantTimezone>
+
+    <PublishSingleFile>True</PublishSingleFile>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSelfContained>False</PublishSelfContained>
+    <DebugType>embedded</DebugType>
+    <PublishDir>$(LocalAppData)\$(AssemblyName)</PublishDir>
   </PropertyGroup>
 
   <ItemGroup>

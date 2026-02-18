@@ -48,7 +48,7 @@ public sealed class Config
     /// </summary>
     public static async Task<Config> LoadAsync()
     {
-        var configPath = Path.Combine(Directory.GetCurrentDirectory(), AppConstants.ConfigFileName);
+        var configPath = Path.Combine(Environment.CurrentDirectory, AppConstants.ConfigFileName);
 
         if (!File.Exists(configPath))
         {
