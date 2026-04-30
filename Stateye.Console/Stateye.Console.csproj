@@ -10,7 +10,8 @@
     <DebugType>embedded</DebugType>
     <PublishSingleFile>True</PublishSingleFile>
     <PublishSelfContained>False</PublishSelfContained>
-    <PublishDir>$(LocalAppData)\$(AssemblyName)</PublishDir>
+
+    <PublishDir>$(LocalAppData)\Stateye</PublishDir>
   </PropertyGroup>
 
   <ItemGroup>

@@ -18,7 +18,8 @@ internal static class EntryPoint
                 builder.AddProvider(new TimestampConsoleLoggerProvider());
             });
 
-            var runtime = new StateyeRuntime(loggerFactory.CreateLogger<StateyeRuntime>());
+            var runtimeOptions = StateyeRuntimeOptions.FromConfigFilePath(Path.Combine(AppContext.BaseDirectory, AppConstants.ConfigFileName));
+            var runtime = new StateyeRuntime(runtimeOptions, loggerFactory.CreateLogger<StateyeRuntime>());
             await runtime.RunAsync(cts.Token);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested) { }

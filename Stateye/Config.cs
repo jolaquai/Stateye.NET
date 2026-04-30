@@ -59,13 +59,20 @@ public sealed class Config
     public bool Studio { get; set; }
 
     /// <summary>
-    /// Loads configuration from the config file relative to the working directory.
+    /// Loads configuration from the specified config file.
     /// Falls back to defaults if the file is missing or malformed.
     /// </summary>
-    public static async Task<Config> LoadAsync(ILogger logger = null, CancellationToken cancellationToken = default)
+    public static Task<Config> LoadAsync(ILogger logger = null, CancellationToken cancellationToken = default)
+        => LoadAsync(Path.Combine(Environment.CurrentDirectory, AppConstants.ConfigFileName), logger, cancellationToken);
+
+    /// <summary>
+    /// Loads configuration from the specified config file.
+    /// Falls back to defaults if the file is missing or malformed.
+    /// </summary>
+    public static async Task<Config> LoadAsync(string configPath, ILogger logger = null, CancellationToken cancellationToken = default)
     {
         logger ??= NullLogger.Instance;
-        var configPath = Path.Combine(Environment.CurrentDirectory, AppConstants.ConfigFileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configPath);
 
         if (!File.Exists(configPath))
         {
@@ -107,10 +114,24 @@ public sealed class Config
                 };
                 // serialize that into the file
                 fs.SetLength(0);
+                fs.Position = 0;
                 await JsonSerializer.SerializeAsync(fs, configCopy, ConfigSerializerContext.Default.Config, cancellationToken);
             }
         }
 
         return config;
+    }
+
+    public static async Task WriteAsync(string configPath, Config config, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(configPath);
+        ArgumentNullException.ThrowIfNull(config);
+
+        var directoryPath = Path.GetDirectoryName(configPath);
+        if (!string.IsNullOrWhiteSpace(directoryPath))
+            Directory.CreateDirectory(directoryPath);
+
+        await using var fs = new FileStream(configPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
+        await JsonSerializer.SerializeAsync(fs, config, ConfigSerializerContext.Default.Config, cancellationToken);
     }
 }

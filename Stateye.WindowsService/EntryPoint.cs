@@ -13,6 +13,7 @@ internal static class EntryPoint
 
         host.Services.AddWindowsService(static o => o.ServiceName = "Stateye");
 
+        host.Services.AddSingleton(static _ => StateyeRuntimeOptions.FromConfigFilePath(Path.Combine(@"C:\Users\user\AppData\Local\Stateye", AppConstants.ConfigFileName)));
         host.Services.AddSingleton<StateyeHost>();
         host.Services.AddHostedService(static sp => sp.GetRequiredService<StateyeHost>());
 
@@ -32,7 +33,7 @@ internal static class EntryPoint
     }
 }
 
-internal sealed class StateyeHost : BackgroundService
+internal sealed class StateyeHost(StateyeRuntimeOptions runtimeOptions) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -45,7 +46,7 @@ internal sealed class StateyeHost : BackgroundService
 
         try
         {
-            var runtime = new StateyeRuntime(loggerFactory.CreateLogger<StateyeRuntime>());
+            var runtime = new StateyeRuntime(runtimeOptions, loggerFactory.CreateLogger<StateyeRuntime>());
             await runtime.RunAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }

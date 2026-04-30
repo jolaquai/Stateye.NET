@@ -14,7 +14,7 @@ internal static partial class StateyeRuntimeLog
     [LoggerMessage(EventId = 2, Level = LogLevel.Critical, Message = "Failed to load config due to a CryptographicException. This likely means that you've changed your Windows account password or you're not the person who had their token encrypted where you ran this application.")]
     public static partial void ConfigCryptoFailure(ILogger logger);
 
-    [LoggerMessage(EventId = 3, Level = LogLevel.Critical, Message = "Please terminate this executable, replace the value of the 'Token' field in the 'stateye.config.json' file with your own (unencrypted) token from the Roblox website, then re-run the application. Your token will be encrypted so that only your user account can decrypt it (and only as long as you don't change your password).")]
+    [LoggerMessage(EventId = 3, Level = LogLevel.Critical, Message = "Please update the configured token value with your own unencrypted token from the Roblox website, then re-run the application. File-backed configs will encrypt that token on first read so that only your user account can decrypt it (until your Windows password changes).")]
     public static partial void ConfigCryptoRecovery(ILogger logger);
 
     [LoggerMessage(EventId = 4, Level = LogLevel.Critical, Message = "Failed to load config: [{ExceptionType}] '{ExceptionMessage}'")]
@@ -23,14 +23,17 @@ internal static partial class StateyeRuntimeLog
     [LoggerMessage(EventId = 5, Level = LogLevel.Critical, Message = "{Message}")]
     public static partial void CriticalMessage(ILogger logger, string message);
 
-    [LoggerMessage(EventId = 6, Level = LogLevel.Critical, Message = "Please ensure that your config file is valid and try again.")]
+    [LoggerMessage(EventId = 6, Level = LogLevel.Critical, Message = "Please ensure that your configured config source is valid and try again.")]
     public static partial void ConfigLoadRecovery(ILogger logger);
 
     [LoggerMessage(EventId = 7, Level = LogLevel.Critical, Message = "No valid token found. You'll need to get one from the Roblox website https://www.roblox.com/ by logging in, inspecting application storage and getting your auth token.")]
     public static partial void NoValidToken(ILogger logger);
 
-    [LoggerMessage(EventId = 8, Level = LogLevel.Critical, Message = "Create a config file where you run this executable (which is typically the same directory where the file itself is located) and put your token in there. It will be encrypted upon first read so that it's not just sitting there in plaintext.")]
+    [LoggerMessage(EventId = 8, Level = LogLevel.Critical, Message = "Provide a token through the configured Stateye config source. If that source is file-backed, a sample config will be written when possible and the token will be encrypted on first read.")]
     public static partial void NoValidTokenRecovery(ILogger logger);
+
+    [LoggerMessage(EventId = 16, Level = LogLevel.Critical, Message = "Wrote sample config to {ConfigPath}")]
+    public static partial void SampleConfigWritten(ILogger logger, string configPath);
 
     [LoggerMessage(EventId = 9, Level = LogLevel.Debug, Message = "Authenticated as user {UserId}")]
     public static partial void Authenticated(ILogger logger, long userId);
@@ -54,8 +57,9 @@ internal static partial class StateyeRuntimeLog
     public static partial void InStudioActivityChanged(ILogger logger, PlaceInfo placeInfo, DateTimeOffset startTimestamp);
 }
 
-public sealed class StateyeRuntime(ILogger<StateyeRuntime> logger)
+public sealed class StateyeRuntime(StateyeRuntimeOptions options, ILogger<StateyeRuntime> logger)
 {
+    private readonly StateyeRuntimeOptions _options = options ?? StateyeRuntimeOptions.Default;
     private readonly ILogger<StateyeRuntime> _logger = logger ?? NullLogger<StateyeRuntime>.Instance;
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -65,7 +69,7 @@ public sealed class StateyeRuntime(ILogger<StateyeRuntime> logger)
         Config config;
         try
         {
-            config = await Config.LoadAsync(_logger, cancellationToken);
+            config = await _options.LoadConfigAsync(_logger, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -94,12 +98,15 @@ public sealed class StateyeRuntime(ILogger<StateyeRuntime> logger)
         {
             StateyeRuntimeLog.NoValidToken(_logger);
             StateyeRuntimeLog.NoValidTokenRecovery(_logger);
-            var sampleConfig = JsonSerializer.Serialize(new Config() { Token = "[YOUR TOKEN HERE]" }, ConfigSerializerContext.Default.Config);
+            var sampleConfigObject = new Config() { Token = "[YOUR TOKEN HERE]" };
+            var sampleConfig = JsonSerializer.Serialize(sampleConfigObject, ConfigSerializerContext.Default.Config);
             StateyeRuntimeLog.CriticalMessage(_logger, $"""
                 It needs to look something like this:
                 {sampleConfig}
                 """);
-            await File.WriteAllTextAsync(Path.Combine(Environment.CurrentDirectory, AppConstants.ConfigFileName), sampleConfig, cancellationToken);
+            var sampleConfigPath = await _options.WriteSampleConfigAsync(sampleConfigObject, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(sampleConfigPath))
+                StateyeRuntimeLog.SampleConfigWritten(_logger, sampleConfigPath);
             return;
         }
 
