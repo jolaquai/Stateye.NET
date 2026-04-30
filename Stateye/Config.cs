@@ -1,8 +1,9 @@
-using System.Numerics.Tensors;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Stateye;
 
@@ -30,6 +31,21 @@ public static class AppConstants
     WriteIndented = true, IndentSize = 2)]
 internal sealed partial class ConfigSerializerContext : JsonSerializerContext;
 
+internal static partial class ConfigLog
+{
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Config file not found")]
+    public static partial void ConfigFileNotFound(ILogger logger);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Loaded config from {ConfigPath}")]
+    public static partial void LoadedConfig(ILogger logger, string configPath);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "Decrypting token from config file")]
+    public static partial void DecryptingToken(ILogger logger);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Debug, Message = "Token in config file is not encrypted, so we're doing that")]
+    public static partial void EncryptingPlaintextToken(ILogger logger);
+}
+
 /// <summary>
 /// Runtime configuration loaded from the config file.
 /// </summary>
@@ -46,26 +62,27 @@ public sealed class Config
     /// Loads configuration from the config file relative to the working directory.
     /// Falls back to defaults if the file is missing or malformed.
     /// </summary>
-    public static async Task<Config> LoadAsync()
+    public static async Task<Config> LoadAsync(ILogger logger = null, CancellationToken cancellationToken = default)
     {
+        logger ??= NullLogger.Instance;
         var configPath = Path.Combine(Environment.CurrentDirectory, AppConstants.ConfigFileName);
 
         if (!File.Exists(configPath))
         {
-            Log.Debug("Config file not found");
+            ConfigLog.ConfigFileNotFound(logger);
             return null;
         }
 
-        Log.Debug($"Loaded config from {configPath}");
+        ConfigLog.LoadedConfig(logger, configPath);
 
         await using var fs = new FileStream(configPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.Asynchronous);
-        var config = await JsonSerializer.DeserializeAsync<Config>(fs, ConfigSerializerContext.Default.Options);
+        var config = await JsonSerializer.DeserializeAsync(fs, ConfigSerializerContext.Default.Config, cancellationToken);
 
         if (config.Token is string token && token.Length > TokenIsEncryptedMarker.Length)
         {
             if (config.Token.StartsWith(TokenIsEncryptedMarker))
             {
-                Log.Debug("Decrypting token from config file");
+                ConfigLog.DecryptingToken(logger);
 
                 // span out the encrypted token and decrypt it
                 var encryptedTokenSpan = token[TokenIsEncryptedMarker.Length..];
@@ -75,7 +92,7 @@ public sealed class Config
             }
             else
             {
-                Log.Debug("Token in config file is not encrypted, so we're doing that");
+                ConfigLog.EncryptingPlaintextToken(logger);
 
                 var tokenBytes = Encoding.ASCII.GetBytes(config.Token);
                 var encryptedTokenBytes = ProtectedData.Protect(tokenBytes, null, DataProtectionScope.CurrentUser);
@@ -90,7 +107,7 @@ public sealed class Config
                 };
                 // serialize that into the file
                 fs.SetLength(0);
-                await JsonSerializer.SerializeAsync(fs, configCopy, ConfigSerializerContext.Default.Options);
+                await JsonSerializer.SerializeAsync(fs, configCopy, ConfigSerializerContext.Default.Config, cancellationToken);
             }
         }
 

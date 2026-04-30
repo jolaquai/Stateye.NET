@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
@@ -21,42 +20,38 @@ public sealed record UserPresence(PresenceType PresenceType, long? PlaceId, long
 /// <summary>
 /// HTTP client wrapper for the Roblox web APIs.
 /// </summary>
-public sealed class RobloxApi
+public sealed class RobloxApi(string token) : IDisposable
 {
-    private readonly HttpClient _client;
-    private readonly string _token;
-
-    public RobloxApi(string token)
-    {
-        _token = token;
-        _client = new HttpClient();
-    }
+    private readonly HttpClient _client = new HttpClient();
+    private readonly string _token = token;
 
     private string TokenCookie => $".ROBLOSECURITY={_token}";
 
-    public async Task<AuthInfo> GetUserAuthInfoAsync()
+    public async Task<AuthInfo> GetUserAuthInfoAsync(CancellationToken cancellationToken = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://users.roblox.com/v1/users/authenticated");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://users.roblox.com/v1/users/authenticated");
         request.Headers.Add("Cookie", TokenCookie);
         request.Headers.Add("Accept", "application/json");
 
-        var response = await _client.SendAsync(request);
+        using var response = await _client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
         var id = doc.RootElement.GetProperty("id").GetInt64();
 
         return new AuthInfo(id);
     }
 
-    public async Task<string> GetPlaceIconUrlAsync(long universeId)
+    public async Task<string> GetPlaceIconUrlAsync(long universeId, CancellationToken cancellationToken = default)
     {
         var url = $"https://thumbnails.roblox.com/v1/games/icons?universeIds={universeId}&size=512x512&format=Png&isCircular=false";
 
-        var response = await _client.GetAsync(url);
+        using var response = await _client.GetAsync(url, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
         var imageUrl = doc.RootElement
             .GetProperty("data")[0]
             .GetProperty("imageUrl")
@@ -65,17 +60,18 @@ public sealed class RobloxApi
         return imageUrl;
     }
 
-    public async Task<PlaceInfo> GetPlaceInfoAsync(long placeId)
+    public async Task<PlaceInfo> GetPlaceInfoAsync(long placeId, CancellationToken cancellationToken = default)
     {
         var url = $"https://games.roblox.com/v1/games/multiget-place-details?placeIds={placeId}";
 
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("Cookie", TokenCookie);
 
-        var response = await _client.SendAsync(request);
+        using var response = await _client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
         var first = doc.RootElement[0];
 
         return new PlaceInfo(
@@ -84,11 +80,11 @@ public sealed class RobloxApi
         );
     }
 
-    public async Task<UserPresence> GetUserPresenceAsync(long userId)
+    public async Task<UserPresence> GetUserPresenceAsync(long userId, CancellationToken cancellationToken = default)
     {
         var url = "https://presence.roblox.com/v1/presence/users";
 
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Add("Cookie", TokenCookie);
         request.Content = new StringContent(
             $"{{\"userIds\":[{userId}]}}",
@@ -96,10 +92,11 @@ public sealed class RobloxApi
             "application/json"
         );
 
-        var response = await _client.SendAsync(request);
+        using var response = await _client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
         var presence = doc.RootElement
             .GetProperty("userPresences")[0];
 
@@ -121,5 +118,10 @@ public sealed class RobloxApi
             : null;
 
         return new UserPresence(presenceType, placeId, universeId);
+    }
+
+    public void Dispose()
+    {
+        _client.Dispose();
     }
 }

@@ -13,7 +13,7 @@ public static class DiscordActivity
         string state,
         string bigIconUrl,
         string smallIconUrl,
-        DiscordRPC.Button[]? buttons,
+        DiscordRPC.Button[] buttons,
         long elapsedEpochSeconds)
     {
         var presence = new RichPresence
