@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting.WindowsServices;
 
 using Stateye;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 
 internal static class EntryPoint
 {
@@ -41,7 +42,9 @@ internal sealed class StateyeHost(StateyeRuntimeOptions runtimeOptions) : Backgr
         {
             builder.ClearProviders();
             builder.SetMinimumLevel(LogLevel.Debug);
-            builder.AddProvider(new TimestampConsoleLoggerProvider());
+            builder.AddProvider(new VolatileFileLoggerProvider($@"C:\Users\user\AppData\Local\Stateye\Logs\{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.log"));
+            if (Debugger.IsAttached)
+                builder.AddProvider(new TimestampConsoleLoggerProvider());
         });
 
         try
